@@ -11,9 +11,9 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'mod_ytstream';
-$plugin->version = 2020031101;
+$plugin->version = 2020031106;
 $plugin->release = 'v1.0';
 $plugin->requires = 2017051500;
 $plugin->maturity = MATURITY_ALPHA;
-$plugin->cron = 0;
+$plugin->cron = 1 * 60;
 $plugin->dependencies = array();

@@ -50,6 +50,7 @@ function ytstream_add_instance(stdClass $ytstream, mod_ytstream_mod_form $mform 
     global $DB;
 
     $ytstream->timecreated = time();
+    $ytstream->is_remind = 0;
 
     /* *** */
 
@@ -59,14 +60,16 @@ function ytstream_add_instance(stdClass $ytstream, mod_ytstream_mod_form $mform 
 
         $time_end = $ytstream->time_start + 24 * 60 * 60;
 
+        $utc = ytstream_get_utc();
+
         $ytstream->url = ytstream_create([
             'client_id'     => $params['client_id'],
             'client_secret' => $params['client_secret'],
             'access_token'  => $params['access_token'],
             'title'         => $ytstream->title,
             'description'   => $ytstream->description,
-            'time_start'    => date('Y-m-d\TH:i:00', $ytstream->time_start),
-            'time_end'      => date('Y-m-d\TH:i:00', $time_end),
+            'time_start'    => date('Y-m-d\TH:i:00' . $utc, $ytstream->time_start),
+            'time_end'      => date('Y-m-d\TH:i:00' . $utc, $time_end),
             'privacy'       => 'public'
         ]);
 
@@ -99,8 +102,8 @@ function ytstream_update_instance(stdClass $ytstream, mod_ytstream_mod_form $mfo
 
     $ytstream->timemodified = time();
     $ytstream->id = $ytstream->instance;
-
-    // You may have to add extra stuff in here.
+    
+    $ytstream->is_remind = 0;
 
     $result = $DB->update_record('ytstream', $ytstream);
 
@@ -258,6 +261,76 @@ function ytstream_print_recent_mod_activity($activity, $courseid, $detail, $modn
  * @return boolean
  */
 function ytstream_cron() {
+    global $DB;
+
+    $time = time();
+
+    $records = $DB->get_records_select('ytstream', 'type = "stream" && is_remind = 0 && time_start - remind * 60 <= ' . $time);
+
+    if (count($records) == 0) {
+        return true;
+    }
+
+    $config = get_config('ytstream');
+
+    $fromUser = core_user::get_support_user();
+
+    foreach ($records as $ytstream) {
+        
+        // Template
+        $subject = (isset($config->email_subject)) ? $config->email_subject : '';
+    	$message = (isset($config->email_message)) ? $config->email_message : '';
+
+        // Subject
+        $subject = preg_replace("/{title}/u", $ytstream->title, $subject);
+        $subject = preg_replace("/{time_start}/u", date('d.m.Y H:i', $ytstream->time_start), $subject);
+
+        // Message
+        $message = preg_replace("/{title}/u", $ytstream->title, $message);
+        $message = preg_replace("/{description}/u", $ytstream->description, $message);
+        $message = preg_replace("/{time_start}/u", date('d.m.Y H:i', $ytstream->time_start), $message);
+
+        // Get enrol of course
+        $enrolOfCourse = $DB->get_records('enrol', array('courseid' => $ytstream->course));
+
+        $enrol_ids = [];
+
+        foreach ($enrolOfCourse as $value) {
+            $enrol_ids[] = $value->id;
+        }
+
+        if (count($enrol_ids) == 0) {
+            continue;
+        }
+
+        // Get users in course
+        $usersInCource = $DB->get_records_list('user_enrolments', 'enrolid', $enrol_ids);
+
+        $user_ids = [];
+
+        foreach ($usersInCource as $value) {
+            $user_ids[] = $value->userid;
+        }
+
+        if (count($user_ids) == 0) {
+            continue;
+        }
+
+        // Get users info
+        $users = $DB->get_records_list('user', 'id', $user_ids);
+
+        foreach ($users as $user) {
+
+            // Send email messages
+            $success = email_to_user($user, $fromUser, $subject, $message);
+        }
+
+        $ytstream->is_remind = 1;
+
+        $DB->update_record('ytstream', $ytstream);
+        
+    }
+
     return true;
 }
 
@@ -561,10 +634,10 @@ function ytstream_create($params)
         $broadcastSnippet = new Google_Service_YouTube_LiveBroadcastSnippet();
         $broadcastSnippet->setTitle($params['title']);
         $broadcastSnippet->setDescription($params['description']);
-        $broadcastSnippet->setScheduledStartTime($params['time_start'] . '.000Z');
+        $broadcastSnippet->setScheduledStartTime($params['time_start']);
 
         if (isset($params['time_end'])) {
-            $broadcastSnippet->setScheduledEndTime($params['time_end'] . '.000Z');
+            $broadcastSnippet->setScheduledEndTime($params['time_end']);
         }
 
         // Create an object for the liveBroadcast resource's status, and set the
@@ -668,4 +741,23 @@ function ytstream_get_video_id($url)
 
     // Полная ссылка
     return explode('&', explode('v=', $url)[1])[0];
+}
+
+function ytstream_get_utc()
+{
+	global $CFG;
+
+	$timezone = new DateTimeZone($CFG->timezone);
+    $transitions = array_slice($timezone->getTransitions(), -3, null, true);
+
+    foreach (array_reverse($transitions, true) as $transition)
+    {
+        if ($transition['isdst'] == 1) {
+            continue;
+        }
+
+        return sprintf('%+03d:%02u', $transition['offset'] / 3600, abs($transition['offset']) % 3600 / 60);
+    }
+
+    return '+00:00';
 }

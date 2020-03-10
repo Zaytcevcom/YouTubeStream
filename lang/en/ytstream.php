@@ -7,15 +7,16 @@ $string['modulename'] = 'YouTube Stream';
 $string['modulename_help'] = 'Модуль «YouTube Stream» позволяет встраивать видеозаписи с сервиса YouTube';
 
 // Settings Page
+$string['configrequire_app_header'] = 'Настройки приложения';
 $string['config_intro'] = 'Для подключения модуля «YouTube Stream» укажите данные от YouTube приложения, через которое будет происходить взаимодействие с API.';
+$string['configrequire_uri'] = 'В качестве разрешенного URI адреса в настройках приложения укажите:';
 
 $string['require_client_id'] = 'ID приложения';
-$string['configrequire_client_id'] = 'ID приложения YouTube';
-
 $string['require_client_secret'] = 'Секретный ключ';
-$string['configrequire_client_secret'] = 'Секретный ключ приложения YouTube';
 
-$string['configrequire_uri'] = 'В качестве разрешенного URI адреса в настройках приложения укажите:';
+$string['configrequire_email_header'] = 'Настройки email оповещений';
+$string['require_email_subject'] = 'Тема сообщения';
+$string['require_email_message'] = 'Шаблон сообщения';
 
 
 // Settings Plagin
